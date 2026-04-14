@@ -18,7 +18,7 @@ body{font-family:"Meiryo","Yu Gothic",sans-serif;background:#f5f5f3;color:#1a1a1
 .kpi{background:#fff;border-radius:8px;padding:12px 14px;border:1px solid #e8e8e0}
 .kpi-lbl{font-size:12px;color:#888;margin-bottom:4px}
 .kpi-val{font-size:26px;font-weight:700}
-.kpi-val.red{color:#d9534f}.kpi-val.ora{color:#c0622a}.kpi-val.amb{color:#9a6800}.kpi-val.grn{color:#2e7d50}
+.kpi-val.red{color:#d9534f}.kpi-val.ora{color:#c0622a}.kpi-val.amb{color:#9a6800}.kpi-val.grn{color:#2e7d50}.kpi-val.gray{color:#aaa}
 .ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;background:#fff;padding:10px 14px;border-radius:8px;border:1px solid #e8e8e0}
 select,input[type=text]{font-size:13px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#1a1a18;height:34px}
 input[type=file]{font-size:12px;color:#555}
@@ -40,6 +40,8 @@ tr:hover td{background:#fafaf8}
 .b3{background:#e9f7ef;color:#1e8449}
 .b4{background:#eaf0fb;color:#1a5276}
 .b5{background:#f4f4f0;color:#666}
+.b6{background:#f0f0f0;color:#aaa;text-decoration:line-through}
+tr.retired-row td{opacity:0.5;background:#fafafa}
 .v0{color:#d9534f;font-weight:700}
 .vnull{color:#bbb}
 .mini-bars{display:flex;align-items:flex-end;gap:3px;height:22px}
@@ -97,6 +99,7 @@ tr:hover td{background:#fafaf8}
       <option value="improving">● 改善中</option>
       <option value="mixed">● 増減あり</option>
       <option value="low">● 低頻度継続</option>
+      <option value="retired">● 退職済み</option>
     </select>
     <input type="text" id="ns" placeholder="名前で検索…" style="min-width:130px">
     <select id="sb">
@@ -106,6 +109,9 @@ tr:hover td{background:#fafaf8}
       <option value="last_asc">直近月 少ない順</option>
     </select>
     <span id="countInfo" style="font-size:11px;color:#aaa;margin-left:4px"></span>
+    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#666;margin-left:8px;cursor:pointer">
+      <input type="checkbox" id="hrCheck" checked> 退職済みを非表示
+    </label>
   </div>
 
   <div class="tbl-wrap">
@@ -126,7 +132,7 @@ tr:hover td{background:#fafaf8}
 const STORE_LIST=["根室店","中標津店","南25条店","（回）ステラプレイス店","南郷店","西野店","手稲前田店","miredo店","ococoすすきの店","キラリス函館店","ポールスター函館店","（回）KITTE店","（回）銀座店","後楽園店","時計台店（四季）","すすきの店（四季）","北口店（四季）","（立）銀座店","オアゾ店","蒲田店","横浜店","新橋店","八重洲店","錦糸町店","サッポロファクトリー店","（で）時計台店","（で）ステラプレイス店","（で）KITTE店","ふくはらcoconoすすきの店"];
 const SHEET_KEYS={'根':0,'中':1,'25':2,'ス':3,'郷':4,'西':5,'手':6,'m':7,'コ':8,'キ函':9,'ポ函':10,'K':11,'銀回':12,'後':13,'時':14,'す':15,'北':16,'銀立':17,'オ':18,'蒲':19,'横':20,'新':21,'八':22,'錦':23,'ファ':24,'で時':25,'でス':26,'でK':27,'ふ':28};
 const BAR_C=['#e74c3c','#f1948a','#f39c12','#f8c471','#bdc3c7','#27ae60','#1e8449','#145a32'];
-const TREND_META={zero_persistent:{lbl:'連続0回',cls:'b0',pri:0},zero_recent:{lbl:'直近0回',cls:'b1',pri:1},worsening:{lbl:'悪化中',cls:'b2',pri:2},improving:{lbl:'改善中',cls:'b3',pri:3},mixed:{lbl:'増減あり',cls:'b4',pri:4},low:{lbl:'低頻度継続',cls:'b5',pri:5}};
+const TREND_META={zero_persistent:{lbl:'連続0回',cls:'b0',pri:0},zero_recent:{lbl:'直近0回',cls:'b1',pri:1},worsening:{lbl:'悪化中',cls:'b2',pri:2},improving:{lbl:'改善中',cls:'b3',pri:3},mixed:{lbl:'増減あり',cls:'b4',pri:4},low:{lbl:'低頻度継続',cls:'b5',pri:5},retired:{lbl:'退職済み',cls:'b6',pri:9}};
 
 // AM→担当店舗マッピング（Shinさんが編集してください）
 const AM_MAP = {
@@ -150,6 +156,7 @@ let state = {
   trendFilter: '',
   nameSearch: '',
   sortBy: 'priority',
+  hideRetired: true,
   page: 1,
   showUpload: false,
   uploading: false,
@@ -179,7 +186,8 @@ function loadData() {
 
 function mLabel(m) { return parseInt(m.slice(5)) + '月'; }
 
-function classifyTrend(pMonths, months) {
+function classifyTrend(pMonths, months, retire) {
+  if (retire) return 'retired';
   const avail = months.map(m => pMonths[m] ?? null).filter(v => v !== null);
   if (avail.length < 2) return 'low';
   const last3 = avail.slice(-3);
@@ -269,6 +277,7 @@ function setupEventListeners() {
   document.getElementById('tf').onchange = e => { state.trendFilter = e.target.value; state.page = 1; render(); };
   document.getElementById('ns').oninput = e => { state.nameSearch = e.target.value; state.page = 1; render(); };
   document.getElementById('sb').onchange = e => { state.sortBy = e.target.value; state.page = 1; render(); };
+  document.getElementById('hrCheck').onchange = e => { state.hideRetired = e.target.checked; state.page = 1; render(); };
   document.getElementById('prevBtn').onclick = () => { state.page = Math.max(1, state.page - 1); render(); };
   document.getElementById('nextBtn').onclick = () => { state.page++; render(); };
 }
@@ -329,7 +338,7 @@ async function handleFile(file) {
 }
 
 function render() {
-  const {monthData, storeFilter, trendFilter, nameSearch, sortBy, page, amFilter} = state;
+  const {monthData, storeFilter, trendFilter, nameSearch, sortBy, page, amFilter, hideRetired} = state;
   const months = Object.keys(monthData).sort();
   let allP = buildPersons(monthData);
 
@@ -348,7 +357,8 @@ function render() {
   ).join('');
 
   // フィルター＋分類
-  let filtered = allP.map(p => ({...p, trend: classifyTrend(p.months, months)}));
+  let filtered = allP.map(p => ({...p, trend: classifyTrend(p.months, months, p.retire)}));
+  if (hideRetired) filtered = filtered.filter(p => p.trend !== 'retired');
   if (storeFilter) filtered = filtered.filter(p => p.store === storeFilter);
   if (trendFilter) filtered = filtered.filter(p => p.trend === trendFilter);
   if (nameSearch) filtered = filtered.filter(p => p.name.includes(nameSearch));
@@ -359,13 +369,15 @@ function render() {
   else if (sortBy==='name') filtered.sort((a,b) => a.name.localeCompare(b.name,'ja'));
   else { const lm=months[months.length-1]; filtered.sort((a,b)=>(a.months[lm]??99)-(b.months[lm]??99)); }
 
-  const allTrends = allP.map(p => classifyTrend(p.months, months));
+  const activeP = allP.filter(p => !p.retire);
+  const activeTrends = activeP.map(p => classifyTrend(p.months, months, p.retire));
+  const retiredCount = allP.filter(p => p.retire).length;
   const kpiData = [
-    {lbl:'追跡対象', val:allP.length, c:''},
-    {lbl:'連続0回', val:allTrends.filter(t=>t==='zero_persistent').length, c:'red'},
-    {lbl:'直近0回', val:allTrends.filter(t=>t==='zero_recent').length, c:'ora'},
-    {lbl:'悪化中', val:allTrends.filter(t=>t==='worsening').length, c:'amb'},
-    {lbl:'改善中', val:allTrends.filter(t=>t==='improving').length, c:'grn'},
+    {lbl:'追跡対象（在籍中）', val: activeP.length, c:''},
+    {lbl:'連続0回', val: activeTrends.filter(t=>t==='zero_persistent').length, c:'red'},
+    {lbl:'直近0回', val: activeTrends.filter(t=>t==='zero_recent').length, c:'ora'},
+    {lbl:'悪化中', val: activeTrends.filter(t=>t==='worsening').length, c:'amb'},
+    {lbl:'退職済み（除外）', val: retiredCount, c:'gray'},
   ];
   document.getElementById('kpiRow').innerHTML = kpiData.map(k =>
     `<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val ${k.c}">${k.val}</div></div>`
@@ -396,7 +408,7 @@ function render() {
       const c = v==null?'#e0dfd8':BAR_C[v];
       return `<div style="width:13px;height:${h}px;background:${c};border-radius:2px 2px 0 0"></div>`;
     }).join('');
-    return `<tr>
+    return `<tr${p.trend==='retired'?' class="retired-row"':''}>
       <td><span class="badge ${tm.cls}">${tm.lbl}</span></td>
       <td style="font-size:13px;color:#555;white-space:nowrap">${p.store}</td>
       <td style="white-space:nowrap">${p.retire?'<span class="rdot"></span>':''}${p.name}</td>
