@@ -9,18 +9,18 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Meiryo","Yu Gothic",sans-serif;background:#f5f5f3;color:#1a1a18;font-size:14px}
 .header{background:#fff;border-bottom:1px solid #e0dfd8;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.header-title{font-size:16px;font-weight:600;color:#1a1a18}
-.header-sub{font-size:11px;color:#888;margin-top:2px}
+.header-title{font-size:18px;font-weight:600;color:#1a1a18}
+.header-sub{font-size:13px;color:#888;margin-top:2px}
 .header-badge{font-size:11px;background:#f0f0ea;padding:4px 10px;border-radius:12px;color:#555}
 .main{padding:16px 20px;max-width:1400px;margin:0 auto}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
 @media(max-width:800px){.kpis{grid-template-columns:repeat(3,1fr)}}
 .kpi{background:#fff;border-radius:8px;padding:12px 14px;border:1px solid #e8e8e0}
-.kpi-lbl{font-size:10px;color:#888;margin-bottom:4px}
-.kpi-val{font-size:22px;font-weight:700}
+.kpi-lbl{font-size:12px;color:#888;margin-bottom:4px}
+.kpi-val{font-size:26px;font-weight:700}
 .kpi-val.red{color:#d9534f}.kpi-val.ora{color:#c0622a}.kpi-val.amb{color:#9a6800}.kpi-val.grn{color:#2e7d50}
 .ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;background:#fff;padding:10px 14px;border-radius:8px;border:1px solid #e8e8e0}
-select,input[type=text]{font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#1a1a18;height:30px}
+select,input[type=text]{font-size:13px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#1a1a18;height:34px}
 input[type=file]{font-size:12px;color:#555}
 .btn{font-size:12px;padding:5px 14px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;color:#1a1a18;height:30px;white-space:nowrap}
 .btn:hover{background:#f5f5f3}
@@ -30,10 +30,10 @@ input[type=file]{font-size:12px;color:#555}
 .up-box{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:14px;border:1px solid #e8e8e0}
 .tbl-wrap{overflow-x:auto;background:#fff;border-radius:8px;border:1px solid #e8e8e0}
 table{width:100%;border-collapse:collapse}
-th{font-size:11px;font-weight:600;color:#666;padding:8px 10px;border-bottom:2px solid #d0d0c8;text-align:left;white-space:nowrap;background:#f0f0ea}
-td{font-size:12px;padding:6px 10px;border-bottom:1px solid #f0f0ea;vertical-align:middle}
+th{font-size:13px;font-weight:700;color:#444;padding:11px 14px;border-bottom:2px solid #c8c8c0;text-align:left;white-space:nowrap;background:#ececea}
+td{font-size:14px;padding:10px 14px;border-bottom:1px solid #ebebea;vertical-align:middle}
 tr:hover td{background:#fafaf8}
-.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap}
+.badge{display:inline-block;font-size:12px;padding:4px 10px;border-radius:10px;font-weight:700;white-space:nowrap}
 .b0{background:#fde8e8;color:#922b21}
 .b1{background:#fdebd0;color:#784212}
 .b2{background:#fef9e7;color:#7d6608}
@@ -392,17 +392,17 @@ function render() {
     }).join('');
     const bars = months.map(m => {
       const v = p.months[m] ?? null;
-      const h = v==null?0:Math.round((v/7)*18)+2;
+      const h = v==null?0:Math.round((v/7)*26)+3;
       const c = v==null?'#e0dfd8':BAR_C[v];
-      return `<div style="width:10px;height:${h}px;background:${c};border-radius:2px 2px 0 0"></div>`;
+      return `<div style="width:13px;height:${h}px;background:${c};border-radius:2px 2px 0 0"></div>`;
     }).join('');
     return `<tr>
       <td><span class="badge ${tm.cls}">${tm.lbl}</span></td>
-      <td style="font-size:11px;color:#888;white-space:nowrap">${p.store}</td>
+      <td style="font-size:13px;color:#555;white-space:nowrap">${p.store}</td>
       <td style="white-space:nowrap">${p.retire?'<span class="rdot"></span>':''}${p.name}</td>
       ${mCells}
-      <td><div class="mini-bars" style="display:flex;align-items:flex-end;gap:3px;height:22px">${bars}</div></td>
-      <td style="font-size:11px;color:${p.retire?'#d9534f':'#bbb'}">${p.retire||'—'}</td>
+      <td><div class="mini-bars" style="display:flex;align-items:flex-end;gap:4px;height:30px">${bars}</div></td>
+      <td style="font-size:13px;color:${p.retire?'#d9534f':'#bbb'}">${p.retire||'—'}</td>
     </tr>`;
   }).join('');
 
