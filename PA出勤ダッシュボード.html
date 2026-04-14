@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PA個人別出勤推移ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Meiryo","Yu Gothic",sans-serif;background:#f5f5f3;color:#1a1a18;font-size:14px}
+.header{background:#fff;border-bottom:1px solid #e0dfd8;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-title{font-size:16px;font-weight:600;color:#1a1a18}
+.header-sub{font-size:11px;color:#888;margin-top:2px}
+.header-badge{font-size:11px;background:#f0f0ea;padding:4px 10px;border-radius:12px;color:#555}
+.main{padding:16px 20px;max-width:1400px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:800px){.kpis{grid-template-columns:repeat(3,1fr)}}
+.kpi{background:#fff;border-radius:8px;padding:12px 14px;border:1px solid #e8e8e0}
+.kpi-lbl{font-size:10px;color:#888;margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:700}
+.kpi-val.red{color:#d9534f}.kpi-val.ora{color:#c0622a}.kpi-val.amb{color:#9a6800}.kpi-val.grn{color:#2e7d50}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;background:#fff;padding:10px 14px;border-radius:8px;border:1px solid #e8e8e0}
+select,input[type=text]{font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#1a1a18;height:30px}
+input[type=file]{font-size:12px;color:#555}
+.btn{font-size:12px;padding:5px 14px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;color:#1a1a18;height:30px;white-space:nowrap}
+.btn:hover{background:#f5f5f3}
+.btn.primary{background:#1a5276;color:#fff;border-color:#1a5276}
+.btn.primary:hover{background:#154360}
+.btn:disabled{opacity:.4;cursor:default}
+.up-box{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:14px;border:1px solid #e8e8e0}
+.tbl-wrap{overflow-x:auto;background:#fff;border-radius:8px;border:1px solid #e8e8e0}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:#666;padding:8px 10px;border-bottom:2px solid #d0d0c8;text-align:left;white-space:nowrap;background:#f0f0ea}
+td{font-size:12px;padding:6px 10px;border-bottom:1px solid #f0f0ea;vertical-align:middle}
+tr:hover td{background:#fafaf8}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap}
+.b0{background:#fde8e8;color:#922b21}
+.b1{background:#fdebd0;color:#784212}
+.b2{background:#fef9e7;color:#7d6608}
+.b3{background:#e9f7ef;color:#1e8449}
+.b4{background:#eaf0fb;color:#1a5276}
+.b5{background:#f4f4f0;color:#666}
+.v0{color:#d9534f;font-weight:700}
+.vnull{color:#bbb}
+.mini-bars{display:flex;align-items:flex-end;gap:3px;height:22px}
+.rdot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#d9534f;margin-right:4px;vertical-align:middle}
+.pg{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;color:#888;background:#fff;border-top:1px solid #e8e8e0;border-radius:0 0 8px 8px}
+.am-filter-bar{background:#1a5276;color:#fff;padding:8px 20px;font-size:12px;display:none}
+.am-filter-bar b{font-size:13px}
+.section-title{font-size:11px;font-weight:600;color:#888;margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase}
+.upload-msg{margin-top:8px;font-size:12px;padding:6px 10px;border-radius:6px}
+.upload-msg.ok{background:#e9f7ef;color:#1e8449}
+.upload-msg.err{background:#fde8e8;color:#922b21}
+.upload-msg.info{background:#f4f4f0;color:#555}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">PA個人別出勤推移ダッシュボード</div>
+    <div class="header-sub" id="headerSub">読み込み中...</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="header-badge" id="headerBadge">株式会社はなまる</span>
+    <button class="btn" id="toggleUpBtn">＋ 月データ追加</button>
+  </div>
+</div>
+
+<div id="amBar" class="am-filter-bar"></div>
+
+<div class="main">
+  <div id="upPanel" style="display:none">
+    <div class="up-box">
+      <div class="section-title">月次データ追加</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px">
+        「PA月労働時間分布2026_X.xlsx」形式のファイルを選択してください。ファイル名の数字から月を自動で検出します。
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+        <span id="uploadSpinner" style="display:none;font-size:12px;color:#888">処理中...</span>
+      </div>
+      <div id="uploadMsg"></div>
+      <div style="margin-top:10px;font-size:11px;color:#aaa" id="registeredMonths"></div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpiRow"></div>
+
+  <div class="ctrl">
+    <select id="sf"></select>
+    <select id="tf">
+      <option value="">全ステータス</option>
+      <option value="zero_persistent">● 連続0回</option>
+      <option value="zero_recent">● 直近0回</option>
+      <option value="worsening">● 悪化中</option>
+      <option value="improving">● 改善中</option>
+      <option value="mixed">● 増減あり</option>
+      <option value="low">● 低頻度継続</option>
+    </select>
+    <input type="text" id="ns" placeholder="名前で検索…" style="min-width:130px">
+    <select id="sb">
+      <option value="priority">優先度順</option>
+      <option value="store">店舗順</option>
+      <option value="name">名前順</option>
+      <option value="last_asc">直近月 少ない順</option>
+    </select>
+    <span id="countInfo" style="font-size:11px;color:#aaa;margin-left:4px"></span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead id="tblHead"></thead>
+      <tbody id="tblBody"></tbody>
+    </table>
+    <div class="pg">
+      <button class="btn" id="prevBtn">← 前</button>
+      <span id="pageInfo">1 / 1</span>
+      <button class="btn" id="nextBtn">次 →</button>
+      <span id="pgCount" style="margin-left:8px;font-size:11px;color:#aaa"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE_LIST=["根室店","中標津店","南25条店","（回）ステラプレイス店","南郷店","西野店","手稲前田店","miredo店","ococoすすきの店","キラリス函館店","ポールスター函館店","（回）KITTE店","（回）銀座店","後楽園店","時計台店（四季）","すすきの店（四季）","北口店（四季）","（立）銀座店","オアゾ店","蒲田店","横浜店","新橋店","八重洲店","錦糸町店","サッポロファクトリー店","（で）時計台店","（で）ステラプレイス店","（で）KITTE店","ふくはらcoconoすすきの店"];
+const SHEET_KEYS={'根':0,'中':1,'25':2,'ス':3,'郷':4,'西':5,'手':6,'m':7,'コ':8,'キ函':9,'ポ函':10,'K':11,'銀回':12,'後':13,'時':14,'す':15,'北':16,'銀立':17,'オ':18,'蒲':19,'横':20,'新':21,'八':22,'錦':23,'ファ':24,'で時':25,'でス':26,'でK':27,'ふ':28};
+const BAR_C=['#e74c3c','#f1948a','#f39c12','#f8c471','#bdc3c7','#27ae60','#1e8449','#145a32'];
+const TREND_META={zero_persistent:{lbl:'連続0回',cls:'b0',pri:0},zero_recent:{lbl:'直近0回',cls:'b1',pri:1},worsening:{lbl:'悪化中',cls:'b2',pri:2},improving:{lbl:'改善中',cls:'b3',pri:3},mixed:{lbl:'増減あり',cls:'b4',pri:4},low:{lbl:'低頻度継続',cls:'b5',pri:5}};
+
+// AM→担当店舗マッピング（Shinさんが編集してください）
+const AM_MAP = {
+  '中田昌美': [],   // 例: ['miredo店','西野店','南25条店']
+  '奥谷昌史': [],
+  '黒澤賢太': [],
+  '小林宗平': [],
+  '及川竜太': [],
+  '藤谷一樹': [],
+  '大野健一': [],
+};
+
+const BS={"stores":["根室店","中標津店","南25条店","（回）ステラプレイス店","南郷店","西野店","手稲前田店","miredo店","ococoすすきの店","キラリス函館店","ポールスター函館店","（回）KITTE店","（回）銀座店","後楽園店","時計台店（四季）","すすきの店（四季）","北口店（四季）","（立）銀座店","オアゾ店","蒲田店","横浜店","新橋店","八重洲店","錦糸町店","サッポロファクトリー店","（で）時計台店","（で）ステラプレイス店","（で）KITTE店","ふくはらcoconoすすきの店"],"months":{"2026-01":[[0,"鈴木 美桜",2,""],[0,"三瓶 瑞希",1,""],[0,"本村 香穏",0,""],[1,"石山 瑚々奈",0,""],[1,"猪俣 雪朔",7,""],[1,"和田 梨恋",5,""],[2,"大森 早苗",6,""],[2,"石田 香織",5,""],[2,"樋口 春菜",4,""],[2,"石井 広美",5,""],[2,"田中 美和",2,""],[2,"武井 さくら",6,""],[2,"鵜川 誠矢",4,""],[2,"川上 悦子",0,""],[2,"オリ スシラ",0,""],[2,"シング サジャナクマリ",0,""],[2,"奥村 未路愛",0,""],[2,"林 夏穂",0,""],[2,"久志 樹",6,""],[2,"石川 寛太",0,""],[2,"福井 柚奈",6,""],[2,"山本 希",7,""],[3,"山﨑 千梨",0,""],[3,"石井 善",6,""],[3,"工藤 遥",5,""],[3,"髙橋 明由奈",0,""],[3,"中村 真佐美",6,""],[3,"古岡 明香里",5,""],[3,"津田 彩那",5,""],[3,"和知 香菜美",7,""],[3,"田口 佑介",6,""],[3,"今川 愛梨",2,""],[3,"野田 一翔",5,""],[3,"村井 豪太",7,""],[3,"工藤 謙介",6,""],[3,"八谷 美里",5,""],[4,"林 星乃花",6,""],[4,"蔵谷 七海",7,""],[4,"永長 珠綺",0,""],[4,"伊藤 梨宮",4,""],[4,"相内 里心",5,""],[4,"三浦 優子",4,""],[4,"阿部 珠華",7,""],[4,"原田 葵",6,""],[4,"内山 銀時",2,"2026-01-31"],[4,"塚本 純平",1,"2026-01-07"],[5,"下野 値子",7,""],[5,"村元 全",5,""],[5,"澤尻 怜愛",7,""],[5,"吉田 来瑠",1,""],[5,"今野 邦泰",4,""],[5,"清水 駿太",3,""],[5,"浅野 哲平",6,""],[5,"鳥谷部 宙",1,""],[5,"杉内 磨衣",0,""],[5,"磯野 稀音",0,""],[5,"菅野 結月",0,"2026-01-19"],[5,"今野 那津希",7,""],[5,"山﨑 祐介",7,""],[5,"漆谷 果音",6,""],[5,"清水 颯太",7,""],[5,"工藤 綾乃",6,""],[5,"林 俊輔",7,""],[5,"山際 華蓮",7,""],[5,"吉田 オリエ",7,""],[6,"田中 ひより",4,""],[6,"佐藤 ともみ",6,""],[6,"柳澤 雪月",0,""],[6,"桐本 育李",3,""],[6,"齋藤 柚奈",7,""],[6,"伊藤 水色",5,""],[6,"池田 結衣花",4,""],[6,"安田 歩未",5,""],[6,"阿部 梨桜",5,""],[6,"長屋 凜",0,""],[6,"白井 暖乃",3,""],[6,"石郷 蓮",0,""],[6,"吹田 愛佳",0,""],[6,"原田 優菜",4,""],[6,"小林 芽生",5,""],[6,"飯田 樹生",0,""],[6,"伊藤 宣子",3,""],[6,"本間 愛",0,"2026-01-31"],[6,"樋口 芽以",5,""],[6,"大橋 愛梨",4,""],[6,"佐々木 瞭太",0,""],[6,"難波 凌久",6,""],[6,"對馬 心結那",1,""],[6,"髙根 大和",6,""],[6,"内田 彰",5,""],[7,"吉田 唯",3,""],[7,"山田 莉子",6,""],[7,"時田 友美",0,""],[7,"郡 柚衣",5,""],[7,"上坂 渓",3,""],[7,"上田 遼",2,""],[7,"大浦 千夏",6,""],[7,"半田 つくし",6,""],[7,"野畠 愛美",4,""],[7,"小山内 唯",0,""],[7,"上野 那緒",5,""],[7,"植坂 航一",7,""],[7,"白川 ともり",3,""],[7,"高木 美咲",7,""],[7,"川村 実月",6,""],[7,"松本 大樹",6,""],[7,"野口 正快",0,""],[7,"蜂谷 陸人",4,""],[7,"川部 琴葉",7,""],[7,"串田 夕依",0,""],[7,"市場 百合子",7,""],[7,"アルー ハン",2,""],[7,"藤井 海斗",0,""],[7,"佐々木 未羽",3,""],[7,"青山 明日菜",7,""],[7,"ナイミン カン",5,""],[7,"大島 千枝",0,"2026-01-16"],[7,"加賀谷 小町",1,"2026-01-17"],[8,"齋藤 実優",0,""],[8,"佐藤 まり江",2,""],[8,"小倉 美保",7,"2026-02-06"],[8,"中村 優希",5,""],[8,"カイユン エムディアブドゥル",5,""],[8,"松家 向葵",3,""],[8,"矢野 奈津子",4,""],[8,"田島 陸",3,""],[8,"河野 陽菜",3,""],[8,"内海 祥翠",4,""],[8,"畑 貴美子",2,""],[8,"中野 夢実",5,""],[8,"森垣 華",5,""],[8,"山本 聖也",1,""],[8,"佐藤 翔輝",5,""],[8,"小林 由弥",0,""],[8,"下川 紗季",3,""],[8,"髙倉 楓太",6,""],[8,"中川 杏太郎",7,""],[8,"鈴木 安由子",6,""],[8,"太田 絵里子",0,"2026-01-31"],[8,"間谷 一樹",0,""],[8,"大橋 梨玖",1,"2026-01-22"],[8,"藤川 寧音",6,""],[8,"富崎 紗衣",0,""],[8,"佐藤 楓",3,""],[8,"太田 瑛斗",0,""],[9,"朝倉 奈緒美",7,""],[9,"山﨑 菜緒",0,""],[9,"近藤 煌秀",5,""],[9,"藤谷 里音",4,""],[9,"山本 莉久",4,""],[9,"菅原 百合絵",1,""],[9,"西川 莉衣",7,""],[9,"三浦 史香",7,""],[9,"田中 美緒",3,""],[9,"藤澤 瑠花",7,""],[10,"山上 心愛",5,""],[10,"八木 脩晟",6,""],[10,"森本 朱香",4,""],[10,"小山内 漣",5,""],[10,"池澤 宏樹",7,""],[10,"佐々木 日菜",0,""],[10,"岡本 侑也",6,""],[10,"丹羽 琢泉",7,""],[10,"敦賀 悠将",3,""],[10,"根本 一優",5,""],[10,"田部井 彩乃",2,""],[10,"福士 明莉",6,""],[10,"加納 芽依",7,""],[10,"佐藤 壮真",6,""],[10,"瘧師 吉美",7,""],[11,"明石 しほり",2,""],[11,"夏目 みほ",6,""],[11,"伊藤 由香理",4,""],[11,"磯野 治",5,""],[11,"増田 美里",3,""],[11,"中村 聡",3,""],[11,"藤生 佳代子",3,""],[11,"金川 翔陽",1,""],[11,"山内 貴恵",7,""],[11,"時田 直哉",6,""],[11,"山戸 英明",4,""],[11,"和島 美貴",5,""],[11,"松本 彩菜",5,""],[11,"三田 剛敬",0,""],[11,"内田 惠子",7,""],[11,"矢津田 祐士",4,""],[11,"久保田 依吹",5,""],[11,"山田 陸翔",6,""],[11,"荻原 広寿",2,""],[11,"千葉 七海",3,""],[11,"岡本 瑚永琉",4,""],[11,"小林 駿太",6,""],[11,"カノドイ 世里香セリーナ",0,"2026-02-02"],[11,"日髙 大智",6,""],[11,"宇内 優子",4,""],[11,"梅村 寛紀",1,"2026-01-15"],[11,"石田 勇和",6,""],[12,"横山 浩幸",6,""],[12,"チョウ ユイ",5,""],[12,"岩渕 龍",5,""],[12,"舘下 美幸",0,""],[12,"因幡 勝江",6,""],[12,"竹内 智子",2,""],[12,"原 典子",6,""],[12,"小山 佳音",0,""],[12,"高橋 亜子",0,""],[12,"松本 京子",0,"2026-01-06"],[12,"グェン ティチュガン",4,""],[12,"ソ ジミン",0,""],[12,"國井 友子",0,""],[13,"正手 咲子",5,""],[13,"岩本 穂花",5,""],[13,"平田 悠真",7,""],[13,"黒川 由衣",6,""],[13,"安部 まつり",4,"2026-02-15"],[13,"門永 雅怜",2,""],[13,"小林 愛依",7,"2026-01-31"],[13,"酒井 岬",7,""],[13,"大塚 玲生",3,""],[13,"中村 拓翔",7,""],[13,"渡邊 優冴",4,""],[13,"塚﨑 暖馨",2,""],[13,"後藤 良太",2,""],[13,"松嵜 結",5,""],[13,"小笠原 啓斗",7,""],[13,"田島 秀都",7,""],[13,"野村 瞬也",5,""],[13,"松任 治希",5,"2026-02-08"],[13,"山下 莉央",0,""],[13,"舩山 実",1,"2026-01-17"],[13,"田中 湊",3,""],[13,"國井 響",4,"2026-01-26"],[13,"長谷美 勤",2,"2026-02-05"],[13,"中村 優仁",7,""],[14,"山岸 拓実",5,""],[14,"小吹 駿太",4,""],[14,"野田 なおみ",0,""],[14,"棗 春奈",4,""],[14,"小嶋 里衣菜",0,""],[14,"吉村 妃莉",0,""],[14,"喜多村 誉大",0,""],[14,"髙橋 侑己",0,""],[14,"吹田 大和",3,""],[14,"馬場 英輝",4,""],[14,"川村 瑛琉",0,""],[15,"坂下 環",2,""],[15,"中澤 学",2,""],[15,"新垣 優侑",4,""],[15,"森田 春香",0,""],[15,"二村 吏",0,""],[15,"五明 陽輝",7,""],[15,"宮沢 禎子",0,""],[15,"酒井 陽子",5,""],[15,"東松 佳希",6,""],[15,"吉竹 桃華",7,""],[16,"大廣 舞",0,""],[16,"久保 優香",7,""],[16,"宮田 渓吾",4,""],[16,"佐藤 潤",5,""],[16,"上篭 千洋",6,""],[16,"前田 花菜乃",2,""],[16,"伊藤 亮太",5,""],[16,"小林 信瑛",6,""],[16,"福井 健斗",1,"2026-01-03"],[16,"徳田 野土花",7,""],[17,"今野 勝",4,""],[17,"中村 康志",0,""],[17,"佐々木 姫和",5,""],[18,"大岩 梨乃",6,""],[18,"西山 怜央",0,""],[19,"杉浦 朱音",0,""],[19,"長谷部 久枝",0,"2026-01-15"],[19,"シャ ガイビン",3,""],[19,"廣部 祐輝",4,""],[19,"清水 遥叶",2,""],[19,"熊井 理央",5,""],[19,"松下 優菜",7,""],[19,"ペイ イナン",0,""],[19,"佐々木 結",0,""],[19,"神 泉",2,""],[20,"吉川 拓斗",5,""],[20,"野原 美翔",5,""],[20,"長谷川 莉沙",7,""],[20,"浅沼 竜桜",6,""],[20,"濱野 毅",4,""],[20,"吉田 苺香",2,""],[20,"中山 桜輔",7,""],[21,"久野 瑛介",3,""],[21,"阪本 緑",2,""],[22,"山本 加代子",0,""],[22,"鈴木 香音",5,""],[22,"鈴木 颯斗",3,""],[22,"小林 優花",6,""],[22,"木村 慧美",3,""],[22,"白石 尚美",4,""],[22,"岩谷 凜",0,"2026-01-08"],[23,"藤田 卓也",3,""],[23,"櫻井 望美",6,""],[23,"岩崎 紗理奈",2,""],[23,"山内 里紗",6,""],[23,"岩瀬 毅",3,""],[23,"薄井 遥菜",6,""],[23,"米久保 ひなた",3,""],[24,"伊藤 綾野",7,""],[24,"中村 友幸",5,""],[24,"蜷川 千里",6,""],[24,"南部 はづき",4,""],[24,"鵜飼 恋花",5,""],[24,"辻 春花",5,""],[24,"清野 来成",3,""],[24,"福田 夏楓",3,""],[24,"二宮 純也",0,"2026-01-26"],[24,"木村 颯汰",0,"2026-01-18"],[25,"星野 優虎",6,""],[25,"鎌田 綾花",6,""],[25,"小田中 彩",0,""],[25,"遠藤 心",4,""],[25,"清水 響",0,""],[25,"菊池 結愛",5,""],[25,"塩川 翔大",4,""],[25,"関口 聡太",4,""],[25,"関口 来実",6,""],[26,"有賀 理紗",6,""],[26,"釜田 洋佑",6,""],[26,"松浦 紗希",6,""],[26,"岩松 夢叶",7,""],[26,"中山 凱斗",4,""],[26,"鎌宮 光希",6,""],[26,"土井 愛弥佳",0,""],[26,"稲葉 さくら",4,""],[26,"高田 健成",7,""],[26,"庄司 智紀",7,""],[26,"郡司 みなみ",7,""],[26,"白川 花希",7,""],[27,"渡辺 隆介",5,""],[28,"村上 真央",7,""]],"2026-02":[[0,"鈴木 美桜",0,""],[0,"三瓶 瑞希",0,""],[0,"本村 香穏",0,""],[0,"角 冬陽",7,""],[0,"斉藤 大志",6,""],[1,"香川 夏輝",6,""],[1,"多田 杏菜",0,""],[1,"下町 美由紀",6,"2026-03-31"],[1,"石山 瑚々奈",0,""],[1,"猪俣 雪朔",6,""],[2,"大森 早苗",6,""],[2,"石田 香織",6,""],[2,"樋口 春菜",3,""],[2,"石井 広美",5,""],[2,"竹田 柚香",6,""],[2,"田中 美和",1,""],[2,"中村 立",6,""],[2,"鵜川 誠矢",4,""],[2,"吉野 日奈子",7,""],[2,"オリ スシラ",0,"2026-02-27"],[2,"シング サジャナクマリ",0,"2026-02-25"],[2,"奥村 未路愛",0,"2026-02-16"],[2,"久志 雪",6,""],[2,"林 夏穂",0,"2026-02-04"],[2,"久志 樹",5,""],[2,"杉山 琉珀",6,""],[2,"田邊 啓",1,""],[2,"森 琥士郎",6,""],[3,"山﨑 千梨",5,""],[3,"石井 善",0,""],[3,"工藤 遥",6,""],[3,"髙橋 明由奈",5,""],[3,"伊藤 悠夏",7,""],[3,"中村 真佐美",6,"2026-02-28"],[3,"古岡 明香里",0,""],[3,"鬼塚 くるみ",4,""],[3,"津田 彩那",3,""],[3,"岩﨑 真優",5,""],[3,"増田 悠希",6,"2026-02-26"],[3,"丸山 桜奈",1,""],[3,"今川 愛梨",2,""],[3,"多田 裕",7,""],[3,"髙橋 健太",5,""],[3,"村井 豪太",5,""],[3,"山田 愛",2,""],[4,"蔵谷 七海",4,""],[4,"永長 珠綺",0,""],[4,"相内 里心",7,""],[4,"阿部 珠華",6,""],[4,"高橋 凛桜",0,"2026-02-05"],[4,"三浦 時空",6,""],[4,"廣澤 心",7,"2026-02-28"],[4,"浅井 ひなた",5,""],[4,"佐藤 苺々乃",7,""],[4,"村井 桃歩",7,""],[5,"下野 値子",5,""],[5,"村元 全",6,""],[5,"上野 姫菜",3,""],[5,"澤尻 怜愛",6,""],[5,"高橋 憲正",6,""],[5,"今野 邦泰",3,""],[5,"清水 駿太",3,"2026-02-13"],[5,"浅野 哲平",5,""],[5,"鳥谷部 宙",1,""],[5,"馬場 悠希",7,""],[5,"杉内 磨衣",0,""],[5,"磯野 稀音",4,""],[5,"豊田 由波",7,""],[5,"山田 煌生",7,""],[5,"山﨑 祐介",5,""],[5,"漆谷 果音",6,""],[5,"工藤 綾乃",2,""],[5,"山田 悠仁",7,""],[5,"林 俊輔",7,""],[5,"山際 華蓮",0,"2026-02-01"],[5,"吉田 オリエ",6,""],[5,"松川 瞳春",4,""],[5,"澤田 大暉",6,""],[5,"関 日奈詩",7,""],[6,"田中 ひより",1,""],[6,"阿部 拓海",0,""],[6,"柳澤 雪月",4,""],[6,"加藤 仁",1,""],[6,"桐本 育李",3,""],[6,"伊藤 水色",5,""],[6,"長屋 凜",4,""],[6,"石郷 蓮",0,"2026-02-28"],[6,"吹田 愛佳",0,""],[6,"原田 優菜",5,""],[6,"大森 楓美那",5,"2026-02-28"],[6,"小林 芽生",4,""],[6,"惠本 琴葉",4,""],[6,"飯田 樹生",2,""],[6,"伊藤 宣子",3,""],[6,"樋口 芽以",7,""],[6,"難波 凌久",5,""],[6,"大森 紗代",6,""],[6,"徳田 寧流",1,""],[6,"對馬 心結那",5,""],[6,"髙根 大和",0,"2026-02-28"],[6,"羽當 飛鳥",7,"2026-02-20"],[6,"森田 哲匠",1,""],[7,"佐川 郁美",7,""],[7,"山田 莉子",4,""],[7,"半田 桃子",7,""],[7,"時田 友美",0,""],[7,"上坂 渓",3,""],[7,"上田 遼",3,""],[7,"大浦 千夏",4,""],[7,"南舘 琉",6,""],[7,"小山内 唯",0,""],[7,"上野 那緒",2,""],[7,"シンタン アウン",0,""],[7,"高木 美咲",4,""],[7,"野口 正快",0,""],[7,"蜂谷 陸人",7,""],[7,"ネスリン アリ",0,""],[7,"竹森 逢人",5,""],[7,"太田 千慧子",7,""],[7,"市場 百合子",3,""],[7,"大島 萌依",4,""],[7,"堀江 優月",5,""],[7,"中村 心音",6,""],[7,"藤井 海斗",0,""],[7,"青山 明日菜",3,""],[7,"ナイミン カン",0,"2026-02-11"],[7,"辻 海音",7,""],[7,"栗原 七奈",4,""],[8,"齋藤 実優",6,""],[8,"小倉 美保",0,"2026-02-06"],[8,"カイユン エムディアブドゥル",6,""],[8,"松家 向葵",5,""],[8,"矢野 奈津子",4,""],[8,"田島 陸",2,""],[8,"片山 幹太",3,""],[8,"河野 陽菜",5,""],[8,"上田 結也",6,""],[8,"渡邊 一花",2,"2026-02-28"],[8,"中野 夢実",6,""],[8,"山本 聖也",0,"2026-02-14"],[8,"佐藤 翔輝",2,""],[8,"佐藤 妃奈",4,"2026-03-16"],[8,"小林 由弥",0,""],[8,"髙倉 楓太",7,""],[8,"出口 美緒",7,""],[8,"中川 杏太郎",7,""],[8,"和泉 穂花",7,""],[8,"福井 芽生子",1,"2026-03-05"],[8,"佐藤 楓",5,""],[9,"朝倉 奈緒美",7,""],[9,"山﨑 菜緒",0,""],[9,"巻口 瑞稀",7,""],[9,"近藤 煌秀",7,""],[9,"藤谷 里音",6,""],[9,"山本 莉久",4,""],[9,"菅原 百合絵",7,""],[9,"髙橋 柊羽",2,""],[9,"藤澤 瑠花",7,""],[10,"山上 心愛",5,""],[10,"森本 朱香",2,"2026-02-28"],[10,"池澤 宏樹",4,""],[10,"松本 多恵",0,"2026-02-14"],[10,"佐々木 日菜",4,""],[10,"丹羽 琢泉",6,""],[10,"敦賀 悠将",2,"2026-02-21"],[10,"田部井 彩乃",1,""],[10,"佐藤 百華",7,""],[10,"日置 梨乃",7,"2026-02-23"],[10,"扇谷 純子",6,"2026-02-15"],[10,"佐藤 壮真",3,""],[10,"菊池 翔空",4,""],[11,"斉藤 治子",6,""],[11,"明石 しほり",2,"2026-02-27"],[11,"リュウ ユウ",6,""],[11,"水口 真耶",6,""],[11,"伊藤 由香理",7,""],[11,"磯野 治",7,""],[11,"増田 美里",3,""],[11,"小田 こずえ",7,""],[11,"中村 聡",4,""],[11,"藤生 佳代子",4,""],[11,"山内 貴恵",7,""],[11,"時田 直哉",6,""],[11,"丹羽 美咲",4,""],[11,"山戸 英明",3,"2026-02-25"],[11,"和島 美貴",5,""],[11,"松本 彩菜",3,""],[11,"内田 惠子",5,""],[11,"矢津田 祐士",7,""],[11,"久保田 依吹",6,""],[11,"荻原 広寿",1,"2026-02-19"],[11,"千葉 七海",4,""],[11,"岡本 瑚永琉",6,""],[11,"カノドイ 世里香セリーナ",0,"2026-02-02"],[11,"日髙 大智",4,""],[11,"宇内 優子",6,""],[12,"横山 浩幸",7,""],[12,"伊達 博輝",7,""],[12,"チョウ ユイ",4,""],[12,"清水 博勝",7,""],[12,"岩渕 龍",7,""],[12,"舘下 美幸",0,""],[12,"三ツ井 彩太",7,""],[12,"因幡 勝江",7,""],[12,"竹内 智子",4,""],[12,"高橋 亜子",0,"2026-02-23"],[12,"グェン ティチュガン",7,""],[12,"ソ ジミン",0,""],[12,"ピュ ピョワエ",0,"2026-02-07"],[13,"正手 咲子",5,""],[13,"岩本 穂花",7,""],[13,"平田 悠真",5,"2026-03-04"],[13,"古田 瑠衣",4,""],[13,"安部 まつり",4,"2026-02-15"],[13,"門永 雅怜",2,""],[13,"関本 樹",7,""],[13,"和泉 涼奈",7,""],[13,"大塚 玲生",4,""],[13,"静間 愛",5,""],[13,"佐藤 千紗",6,""],[13,"中村 拓翔",3,"2026-03-30"],[13,"松嵜 結",0,"2026-03-31"],[13,"小笠原 啓斗",6,""],[13,"大谷 健斗",7,""],[13,"小俣 優希",3,""],[13,"田島 秀都",6,""],[13,"野村 瞬也",7,""],[13,"松任 治希",0,"2026-02-08"],[13,"山下 莉央",0,""],[13,"田中 湊",0,""],[13,"小形 靖子",7,""],[13,"長谷美 勤",0,"2026-02-05"],[14,"山岸 拓実",4,""],[14,"小吹 駿太",5,""],[14,"棗 春奈",4,""],[14,"小杉 歩己",5,""],[14,"吉村 妃莉",0,""],[14,"喜多村 誉大",0,""],[14,"内田 晴翔",0,""],[14,"髙橋 侑己",0,""],[14,"吹田 大和",0,""],[14,"鈴木 虎之介",7,""],[14,"馬場 英輝",4,""],[14,"川村 瑛琉",0,""],[14,"松本 隼太朗",2,""],[15,"坂下 環",4,""],[15,"中澤 学",3,""],[15,"新垣 優侑",1,""],[15,"宮沢 禎子",0,""],[15,"酒井 陽子",4,""],[15,"小西 陸斗",0,""],[15,"東松 佳希",5,""],[15,"ジャン インヒョク",0,""],[15,"吉竹 桃華",6,""],[16,"奥山 瑛利加",5,"2026-02-25"],[16,"大廣 舞",0,""],[16,"吉原 俊",4,""],[16,"久保 優香",4,""],[16,"岡田 恵美",0,"2026-02-23"],[16,"佐藤 潤",6,""],[16,"前田 花菜乃",7,""],[16,"??田 彩華",0,"2026-02-14"],[16,"伊藤 亮太",4,""],[16,"小林 信瑛",6,""],[16,"徳田 野土花",4,""],[17,"今野 勝",4,""],[17,"中村 康志",2,""],[17,"佐々木 姫和",3,""],[17,"高松 由佳",7,""],[18,"山田 文花",7,""],[18,"古川 皓介",3,""],[18,"西山 怜央",0,""],[19,"杉浦 朱音",2,""],[19,"シャ ガイビン",5,""],[19,"廣部 祐輝",2,""],[19,"清水 遥叶",2,""],[19,"熊井 理央",6,""],[19,"松下 優菜",1,""],[19,"佐々木 結",0,"2026-02-24"],[19,"神 泉",0,"2026-02-27"],[20,"金子 大悟",5,""],[20,"吉川 拓斗",4,""],[20,"長谷川 莉沙",0,""],[20,"浅沼 竜桜",2,""],[20,"濱野 毅",6,""],[20,"吉田 苺香",0,""],[20,"中山 桜輔",4,""],[21,"久野 瑛介",6,""],[21,"阪本 緑",1,""],[21,"川崎 幹矢",6,""],[22,"星野 亮太",7,""],[22,"大野 月菜",1,""],[22,"安達 稀月",0,"2026-02-15"],[22,"山本 加代子",0,""],[22,"鈴木 香音",5,""],[22,"鈴木 颯斗",5,""],[22,"小林 優花",4,""],[22,"木村 慧美",3,""],[22,"仲間 理紗",7,""],[22,"鯨岡 風香",5,""],[22,"白石 尚美",3,""],[23,"藤田 卓也",4,""],[23,"岩崎 紗理奈",5,""],[23,"城戸 彩葉",0,""],[23,"山内 里紗",6,""],[23,"岩瀬 毅",4,""],[23,"渡辺 美優",4,""],[23,"松野 政博",0,"2026-02-19"],[23,"米久保 ひなた",5,""],[24,"伊藤 綾野",6,""],[24,"中村 友幸",4,""],[24,"南 音葉",0,"2026-02-28"],[24,"野崎 優羽",7,""],[24,"蜷川 千里",2,""],[24,"水上 清太郎",3,""],[24,"南部 はづき",0,""],[24,"辻 春花",6,""],[24,"高橋 晴天",7,""],[24,"佐々木 遥奈",4,""],[24,"秋山 玄誠",7,""],[24,"柳田 恭吾",7,""],[24,"ジョン ジミン",7,""],[25,"鎌田 綾花",6,""],[25,"小田中 彩",2,""],[25,"長内 りか",7,""],[25,"清水 響",4,""],[25,"塩川 翔大",7,""],[25,"関口 聡太",7,""],[25,"髙橋 創",4,""],[25,"鈴木 慎二",5,""],[26,"有賀 理紗",2,""],[26,"河本 凜",2,""],[26,"岩松 夢叶",6,""],[26,"中山 凱斗",4,""],[26,"平野 隼介",7,""],[26,"稲葉 さくら",0,""],[26,"米内山 桜妃",6,""],[26,"郡司 みなみ",7,""],[26,"伊藤 智咲",7,""],[26,"横山 美羽",7,""],[27,"渡辺 隆介",5,""],[28,"村上 真央",5,""]],"2026-03":[[0,"三瓶 瑞希",0,""],[0,"本村 香穏",0,""],[0,"片野 直之",6,""],[1,"太田 亜恵里",7,""],[1,"下町 美由紀",4,"2026-03-31"],[1,"石山 瑚々奈",0,""],[1,"南 心陽",7,"2026-03-12"],[1,"和田 梨恋",0,""],[2,"大森 早苗",5,""],[2,"石田 香織",3,""],[2,"樋口 春菜",6,""],[2,"石井 広美",4,""],[2,"田中 美和",0,""],[2,"藤井 夢翔",5,""],[2,"小西 美玖",4,""],[2,"伊戸川 結圭",7,""],[2,"久志 樹",7,""],[2,"山本 希",5,""],[2,"森 琥士郎",0,""],[2,"井﨑 柚",4,""],[3,"田村 英慈",7,""],[3,"野沢 博美",7,""],[3,"山﨑 千梨",3,"2026-03-27"],[3,"工藤 遥",0,""],[3,"髙橋 明由奈",4,"2026-03-27"],[3,"外山 太良",6,"2026-03-31"],[3,"松野 慧",6,""],[3,"古岡 明香里",3,""],[3,"岩﨑 真優",3,""],[3,"石井 結菜",6,""],[3,"角野 颯真",6,""],[3,"今川 愛梨",2,""],[3,"多田 裕",5,""],[3,"澤村 帆登",7,""],[3,"本所 優奈",6,""],[3,"村井 豪太",0,""],[3,"月森 光希",1,""],[3,"八谷 美里",3,""],[3,"中澤 怜翔",0,""],[3,"菊地 香花",0,"2026-03-05"],[3,"山田 愛",7,""],[3,"市林 美羽",0,"2026-04-04"],[4,"林 星乃花",0,"2026-03-31"],[4,"西尾 梨奈",7,""],[4,"小坂 真凜",0,"2026-03-31"],[4,"澤木 恵理",0,"2026-03-31"],[4,"大熊 優吾",0,"2026-03-31"],[4,"永長 珠綺",0,""],[4,"坂東 結仁",0,"2026-03-31"],[4,"鈴木 渉平",5,"2026-03-31"],[4,"岡本 俊",2,"2026-03-31"],[4,"阿部 珠華",7,""],[4,"三浦 時空",6,""],[4,"八巻 仁夕",7,""],[4,"村井 桃歩",6,""],[5,"村元 全",3,""],[5,"上野 姫菜",6,"2026-03-31"],[5,"今野 邦泰",4,""],[5,"浅野 哲平",6,""],[5,"鳥谷部 宙",0,""],[5,"杉内 磨衣",0,""],[5,"豊田 由波",7,"2026-03-31"],[5,"山﨑 祐介",5,""],[5,"工藤 綾乃",5,""],[5,"林 俊輔",5,""],[6,"田中 ひより",3,"2026-03-31"],[6,"佐藤 ともみ",7,""],[6,"阿部 拓海",1,"2026-03-19"],[6,"加藤 仁",1,"2026-03-20"],[6,"伊藤 水色",2,""],[6,"佐々木 陽空",0,"2026-03-05"],[6,"池田 結衣花",0,""],[6,"吹田 愛佳",0,"2026-03-31"],[6,"小林 芽生",5,"2026-03-25"],[6,"惠本 琴葉",5,""],[6,"伊藤 宣子",3,""],[6,"丹羽 理紗子",6,""],[6,"道場 真緒",5,""],[6,"大森 紗代",5,""],[6,"佐藤 みゆき",7,"2026-03-10"],[6,"對馬 心結那",0,"2026-03-29"],[6,"内田 彰",0,""],[6,"森田 哲匠",0,"2026-03-30"],[6,"望月 結衣",0,"2026-03-24"],[7,"岩本 夢乃香",0,""],[7,"山田 莉子",3,""],[7,"雨山 柚菜",0,"2026-03-21"],[7,"時田 友美",0,""],[7,"上坂 渓",5,""],[7,"上田 遼",5,""],[7,"大浦 千夏",3,""],[7,"野畠 愛美",4,""],[7,"小山内 唯",0,""],[7,"上野 那緒",6,""],[7,"シンタン アウン",3,""],[7,"高木 美咲",1,""],[7,"野口 正快",0,""],[7,"蜂谷 陸人",5,""],[7,"ネスリン アリ",0,""],[7,"名取 佑衣",7,""],[7,"川部 琴葉",3,""],[7,"竹森 逢人",5,""],[7,"中村 藍",0,""],[7,"太田 千慧子",6,""],[7,"市場 百合子",6,""],[7,"アルー ハン",7,""],[7,"ミンタン ソー",5,""],[7,"辻 海音",0,""],[7,"栗原 七奈",0,"2026-03-01"],[7,"鈴木 虎太朗",0,""],[8,"木下 亜耶",7,"2026-03-31"],[8,"中田 雅人",6,""],[8,"佐藤 美菜",6,"2026-03-31"],[8,"カイユン エムディアブドゥル",7,""],[8,"矢野 奈津子",6,""],[8,"田島 陸",4,""],[8,"片山 幹太",6,""],[8,"河野 陽菜",2,"2026-04-01"],[8,"上田 結也",5,""],[8,"佐藤 翔輝",0,""],[8,"佐藤 妃奈",0,"2026-03-16"],[8,"小林 由弥",7,""],[8,"鈴木 安由子",7,""],[8,"小林 愛奈",5,""],[8,"福井 芽生子",0,"2026-03-05"],[8,"藤川 寧音",4,""],[8,"佐藤 楓",4,""],[8,"芳賀 称摘実",6,""],[8,"山下 和江",0,"2026-04-11"],[8,"伊藤 栄",0,"2026-03-20"],[9,"巻口 瑞稀",5,"2026-03-11"],[9,"木村 理人",0,""],[9,"山本 莉久",1,"2026-03-24"],[9,"木南 斗亜",5,""],[9,"髙橋 柊羽",6,""],[9,"田中 美緒",6,""],[9,"増田 珀士",7,""],[10,"高倉 柊",6,""],[10,"山上 心愛",4,"2026-03-31"],[10,"池澤 宏樹",1,"2026-03-31"],[10,"北島 あ葵",0,"2026-03-30"],[10,"岡本 侑也",4,"2026-03-27"],[10,"松井 美由貴",0,"2026-03-18"],[10,"加賀 卓爾",3,""],[10,"丹羽 琢泉",2,""],[10,"小林 志慧",3,""],[10,"熊本 伊吹",0,"2026-03-13"],[10,"田部井 彩乃",5,""],[10,"菊池 翔空",3,"2026-03-14"],[11,"夏目 みほ",7,""],[11,"リュウ ユウ",6,""],[11,"伊藤 由香理",4,""],[11,"平井 玲子",7,""],[11,"増田 美里",4,""],[11,"中村 聡",1,""],[11,"藤生 佳代子",6,""],[11,"時田 直哉",4,""],[11,"三山 忍",6,""],[11,"松本 彩菜",7,""],[11,"内田 惠子",4,""],[11,"矢津田 祐士",7,""],[11,"久保田 依吹",4,""],[11,"千葉 七海",3,""],[11,"岡本 瑚永琉",7,""],[11,"小林 駿太",7,""],[11,"宇内 優子",6,""],[12,"柴田 和香",7,""],[12,"チョウ ユイ",4,""],[12,"岩渕 龍",7,""],[12,"舘下 美幸",0,""],[12,"因幡 勝江",7,""],[12,"竹内 智子",4,""],[12,"髙濵 眞由美",6,""],[12,"ソ ジミン",0,""],[12,"佐竹 結羽",1,"2026-03-09"],[13,"正手 咲子",5,""],[13,"平田 悠真",0,"2026-03-04"],[13,"古田 瑠衣",3,""],[13,"髙木 生",2,"2026-03-23"],[13,"門永 雅怜",1,""],[13,"関本 樹",6,""],[13,"酒井 岬",6,""],[13,"和泉 涼奈",4,""],[13,"大塚 玲生",6,""],[13,"西村 菜緒",6,""],[13,"静間 愛",6,""],[13,"中村 拓翔",6,"2026-03-30"],[13,"大谷 健斗",5,""],[13,"小俣 優希",0,"2026-03-11"],[13,"田島 秀都",6,""],[13,"山下 莉央",0,"2026-03-30"],[13,"田中 湊",0,""],[13,"小林 慶大",0,"2026-03-21"],[14,"山岸 拓実",5,""],[14,"小吹 駿太",2,""],[14,"棗 春奈",7,""],[14,"小杉 歩己",6,"2026-03-16"],[14,"吉村 妃莉",0,""],[14,"喜多村 誉大",0,""],[14,"髙橋 侑己",0,""],[14,"吹田 大和",0,""],[14,"鈴木 虎之介",3,""],[14,"馬場 英輝",0,""],[14,"山田 智理",4,""],[14,"川村 瑛琉",0,""],[14,"松本 隼太朗",7,""],[14,"山﨑 忠明",6,"2026-03-15"],[15,"佐藤 佳代",7,""],[15,"新垣 優侑",7,""],[15,"加藤 千煌",0,"2026-03-25"],[15,"酒井 陽子",6,""],[15,"小西 陸斗",0,"2026-03-08"],[15,"吉竹 桃華",4,""],[16,"久保 優香",3,""],[16,"佐藤 潤",3,""],[16,"黒木 ゆら",2,"2026-03-31"],[16,"上篭 千洋",4,""],[16,"伊藤 亮太",6,""],[16,"小林 信瑛",7,""],[16,"徳田 野土花",6,""],[17,"今野 勝",3,""],[17,"中村 康志",0,""],[17,"佐々木 姫和",0,"2026-03-24"],[18,"市川 信二",0,""],[19,"杉浦 朱音",2,""],[19,"廣部 祐輝",3,""],[19,"清水 遥叶",0,"2026-03-31"],[19,"熊井 理央",0,""],[19,"松下 優菜",6,""],[20,"矢野 健人",3,"2026-03-16"],[20,"金子 大悟",3,"2026-03-14"],[20,"吉川 拓斗",7,""],[20,"小松﨑 美緒",6,""],[20,"野原 美翔",2,""],[20,"長谷川 莉沙",5,""],[20,"浅沼 竜桜",3,""],[20,"濱野 毅",5,""],[20,"吉田 苺香",0,""],[21,"久野 瑛介",4,"2026-03-26"],[21,"伊澤 史子",2,""],[21,"阪本 緑",1,""],[22,"星野 亮太",6,""],[22,"山本 加代子",0,""],[22,"鈴木 香音",4,"2026-03-31"],[22,"鈴木 颯斗",2,""],[22,"並松 直子",7,""],[22,"小林 優花",2,"2026-03-07"],[22,"木村 慧美",4,""],[22,"仲間 理紗",7,""],[22,"鯨岡 風香",6,""],[22,"白石 尚美",3,""],[22,"板倉 理咲",3,""],[23,"岩崎 紗理奈",3,""],[23,"岩瀬 毅",5,"2026-03-31"],[23,"薄井 遥菜",4,"2026-03-30"],[23,"渡辺 美優",7,""],[23,"米久保 ひなた",5,""],[24,"伊藤 綾野",7,"2026-03-15"],[24,"中村 友幸",4,""],[24,"本田 侑也",4,"2026-03-14"],[24,"野崎 優羽",4,""],[24,"水上 清太郎",1,""],[24,"南部 はづき",1,""],[24,"鵜飼 恋花",6,""],[24,"黒川 颯天",7,""],[24,"辻 春花",7,""],[24,"長沼 晴",6,""],[24,"中山 倖熙",7,"2026-03-29"],[25,"松田 侑佳",6,""],[25,"清水 響",4,""],[25,"関口 聡太",2,""],[25,"鈴木 慎二",4,""],[26,"岩松 夢叶",7,""],[26,"中山 凱斗",4,""],[26,"土井 愛弥佳",0,""],[26,"稲葉 さくら",0,""],[26,"手塚 愛梨",7,""],[26,"治部 和樹",7,""],[26,"郡司 みなみ",7,""],[26,"白川 花希",7,""],[27,"渡辺 隆介",5,""],[27,"柴田 祐輔",2,"2026-03-10"],[27,"内木 巳致子",6,""],[28,"村上 真央",4,""]]}};
+
+const LS_KEY = 'pa_dashboard_v1';
+const PER = 30;
+
+let state = {
+  monthData: null,
+  storeFilter: '',
+  trendFilter: '',
+  nameSearch: '',
+  sortBy: 'priority',
+  page: 1,
+  showUpload: false,
+  uploading: false,
+  amFilter: null,  // URLパラメーターから
+};
+
+// URLパラメーター解析
+function getUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    store: p.get('store') || '',
+    am: p.get('am') || '',
+    readonly: p.get('readonly') === '1',
+  };
+}
+
+// localStorage読み書き
+function saveData(data) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) {}
+}
+function loadData() {
+  try {
+    const s = localStorage.getItem(LS_KEY);
+    return s ? JSON.parse(s) : null;
+  } catch(e) { return null; }
+}
+
+function mLabel(m) { return parseInt(m.slice(5)) + '月'; }
+
+function classifyTrend(pMonths, months) {
+  const avail = months.map(m => pMonths[m] ?? null).filter(v => v !== null);
+  if (avail.length < 2) return 'low';
+  const last3 = avail.slice(-3);
+  const n = last3.length;
+  const allZ = last3.every(v => v === 0);
+  const lastZ = last3[n-1] === 0;
+  const prev2Z = n >= 2 && last3[n-2] === 0;
+  if (allZ) return 'zero_persistent';
+  if (lastZ && prev2Z) return 'zero_persistent';
+  if (lastZ) return 'zero_recent';
+  const isInc = last3.every((v,i) => i===0 || v >= last3[i-1]);
+  const isDec = last3.every((v,i) => i===0 || v <= last3[i-1]);
+  if (isInc && last3[n-1] > last3[0]) return 'improving';
+  if (isDec && last3[n-1] < last3[0]) return 'worsening';
+  return 'mixed';
+}
+
+function buildPersons(data) {
+  const months = Object.keys(data).sort();
+  const map = {};
+  for (const m of months) {
+    for (const [si, name, days, retire] of (data[m] || [])) {
+      const k = `${si}|${name}`;
+      if (!map[k]) map[k] = {store: STORE_LIST[si], name, months: {}, retire: ''};
+      map[k].months[m] = days;
+      if (retire) map[k].retire = retire;
+    }
+  }
+  return Object.values(map).filter(p => Object.keys(p.months).length >= 2);
+}
+
+function init() {
+  const params = getUrlParams();
+
+  // URLパラメーターによるAM・店舗フィルター設定
+  if (params.am && AM_MAP[params.am]) {
+    state.amFilter = params.am;
+  }
+  if (params.store) {
+    state.storeFilter = params.store;
+  }
+
+  // AMフィルターバー表示
+  if (state.amFilter) {
+    const bar = document.getElementById('amBar');
+    bar.style.display = 'block';
+    bar.innerHTML = `<b>${state.amFilter} AM</b> — 担当エリアのデータを表示中`;
+  }
+
+  // データ読み込み
+  let data = loadData();
+  if (!data) {
+    data = {};
+    for (const [m, recs] of Object.entries(BS.months)) {
+      data[m] = recs;
+    }
+    saveData(data);
+  } else {
+    // ブートストラップにある月で欠けているものを補完
+    for (const [m, recs] of Object.entries(BS.months)) {
+      if (!data[m]) { data[m] = recs; }
+    }
+    saveData(data);
+  }
+  state.monthData = data;
+
+  // 読み取り専用モードの場合はアップロードボタンを非表示
+  if (params.readonly) {
+    document.getElementById('toggleUpBtn').style.display = 'none';
+  }
+
+  setupEventListeners();
+  render();
+}
+
+function setupEventListeners() {
+  document.getElementById('toggleUpBtn').onclick = () => {
+    state.showUpload = !state.showUpload;
+    document.getElementById('upPanel').style.display = state.showUpload ? 'block' : 'none';
+    document.getElementById('toggleUpBtn').textContent = state.showUpload ? '▲ 閉じる' : '＋ 月データ追加';
+  };
+  document.getElementById('fileInput').onchange = e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+    e.target.value = '';
+  };
+  document.getElementById('sf').onchange = e => { state.storeFilter = e.target.value; state.page = 1; render(); };
+  document.getElementById('tf').onchange = e => { state.trendFilter = e.target.value; state.page = 1; render(); };
+  document.getElementById('ns').oninput = e => { state.nameSearch = e.target.value; state.page = 1; render(); };
+  document.getElementById('sb').onchange = e => { state.sortBy = e.target.value; state.page = 1; render(); };
+  document.getElementById('prevBtn').onclick = () => { state.page = Math.max(1, state.page - 1); render(); };
+  document.getElementById('nextBtn').onclick = () => { state.page++; render(); };
+}
+
+async function handleFile(file) {
+  state.uploading = true;
+  const msgEl = document.getElementById('uploadMsg');
+  msgEl.className = 'upload-msg info'; msgEl.textContent = '解析中...';
+  document.getElementById('uploadSpinner').style.display = 'inline';
+
+  try {
+    const match = file.name.match(/2026_0?(\d+)/i);
+    if (!match) {
+      msgEl.className = 'upload-msg err';
+      msgEl.textContent = '❌ ファイル名から月を検出できません。「PA月労働時間分布2026_X.xlsx」形式にしてください。';
+      document.getElementById('uploadSpinner').style.display = 'none';
+      return;
+    }
+    const mn = parseInt(match[1]);
+    const mk = `2026-${String(mn).padStart(2, '0')}`;
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type: 'array', cellDates: true});
+    const recs = [];
+    for (const [sn, si] of Object.entries(SHEET_KEYS)) {
+      const ws = wb.Sheets[sn];
+      if (!ws) continue;
+      const rows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: null});
+      for (let i = 2; i < rows.length; i++) {
+        const row = rows[i]; if (!row) continue;
+        const name = row[2]; const days = row[5];
+        if (!name || typeof name !== 'string' || !name.trim()) continue;
+        const d = typeof days === 'number' ? Math.round(days) : parseInt(days);
+        if (isNaN(d) || d < 0 || d > 31) continue;
+        let ret = '';
+        const rv = row[7];
+        if (rv instanceof Date) { const y = rv.getFullYear(); if (y >= 2020 && y <= 2030) ret = rv.toISOString().slice(0, 10); }
+        else if (typeof rv === 'string' && /\d{4}-\d{2}-\d{2}/.test(rv)) ret = rv.slice(0, 10);
+        recs.push([si, name.trim(), d, ret]);
+      }
+    }
+    if (recs.length === 0) {
+      msgEl.className = 'upload-msg err';
+      msgEl.textContent = '❌ データを読み取れませんでした。ファイル形式を確認してください。';
+      document.getElementById('uploadSpinner').style.display = 'none';
+      return;
+    }
+    state.monthData = {...state.monthData, [mk]: recs};
+    saveData(state.monthData);
+    msgEl.className = 'upload-msg ok';
+    msgEl.textContent = `✅ ${mn}月データを登録しました（${recs.length}名）`;
+    state.page = 1;
+    render();
+  } catch(e) {
+    msgEl.className = 'upload-msg err';
+    msgEl.textContent = '❌ エラー: ' + e.message;
+  }
+  document.getElementById('uploadSpinner').style.display = 'none';
+}
+
+function render() {
+  const {monthData, storeFilter, trendFilter, nameSearch, sortBy, page, amFilter} = state;
+  const months = Object.keys(monthData).sort();
+  let allP = buildPersons(monthData);
+
+  // AMフィルター適用（URLパラメーター）
+  if (amFilter && AM_MAP[amFilter] && AM_MAP[amFilter].length > 0) {
+    allP = allP.filter(p => AM_MAP[amFilter].includes(p.store));
+  }
+
+  const stores = [...new Set(allP.map(p => p.store))].sort((a,b) => a.localeCompare(b, 'ja'));
+
+  // ストアセレクト更新
+  const sf = document.getElementById('sf');
+  const cur = sf.value;
+  sf.innerHTML = '<option value="">全店舗</option>' + stores.map(s =>
+    `<option value="${s}"${storeFilter===s?' selected':''}>${s}</option>`
+  ).join('');
+
+  // フィルター＋分類
+  let filtered = allP.map(p => ({...p, trend: classifyTrend(p.months, months)}));
+  if (storeFilter) filtered = filtered.filter(p => p.store === storeFilter);
+  if (trendFilter) filtered = filtered.filter(p => p.trend === trendFilter);
+  if (nameSearch) filtered = filtered.filter(p => p.name.includes(nameSearch));
+
+  const PRI = {zero_persistent:0,zero_recent:1,worsening:2,mixed:4,improving:5,low:6};
+  if (sortBy==='priority') filtered.sort((a,b) => (PRI[a.trend]??9)-(PRI[b.trend]??9));
+  else if (sortBy==='store') filtered.sort((a,b) => a.store.localeCompare(b.store,'ja'));
+  else if (sortBy==='name') filtered.sort((a,b) => a.name.localeCompare(b.name,'ja'));
+  else { const lm=months[months.length-1]; filtered.sort((a,b)=>(a.months[lm]??99)-(b.months[lm]??99)); }
+
+  const allTrends = allP.map(p => classifyTrend(p.months, months));
+  const kpiData = [
+    {lbl:'追跡対象', val:allP.length, c:''},
+    {lbl:'連続0回', val:allTrends.filter(t=>t==='zero_persistent').length, c:'red'},
+    {lbl:'直近0回', val:allTrends.filter(t=>t==='zero_recent').length, c:'ora'},
+    {lbl:'悪化中', val:allTrends.filter(t=>t==='worsening').length, c:'amb'},
+    {lbl:'改善中', val:allTrends.filter(t=>t==='improving').length, c:'grn'},
+  ];
+  document.getElementById('kpiRow').innerHTML = kpiData.map(k =>
+    `<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val ${k.c}">${k.val}</div></div>`
+  ).join('');
+
+  const tp = Math.max(1, Math.ceil(filtered.length / PER));
+  const cp = Math.min(page, tp);
+  state.page = cp;
+  const slice = filtered.slice((cp-1)*PER, cp*PER);
+
+  // テーブルヘッダー
+  document.getElementById('tblHead').innerHTML = `<tr>
+    <th>ステータス</th><th>店舗</th><th>名前</th>
+    ${months.map(m=>`<th style="text-align:center">${mLabel(m)}</th>`).join('')}
+    <th style="min-width:90px">推移</th><th>退職日</th>
+  </tr>`;
+
+  // テーブルボディ
+  document.getElementById('tblBody').innerHTML = slice.map(p => {
+    const tm = TREND_META[p.trend] || TREND_META.low;
+    const mCells = months.map(m => {
+      const v = p.months[m] ?? null;
+      return `<td style="text-align:center" class="${v===0?'v0':v==null?'vnull':''}">${v==null?'—':v}</td>`;
+    }).join('');
+    const bars = months.map(m => {
+      const v = p.months[m] ?? null;
+      const h = v==null?0:Math.round((v/7)*18)+2;
+      const c = v==null?'#e0dfd8':BAR_C[v];
+      return `<div style="width:10px;height:${h}px;background:${c};border-radius:2px 2px 0 0"></div>`;
+    }).join('');
+    return `<tr>
+      <td><span class="badge ${tm.cls}">${tm.lbl}</span></td>
+      <td style="font-size:11px;color:#888;white-space:nowrap">${p.store}</td>
+      <td style="white-space:nowrap">${p.retire?'<span class="rdot"></span>':''}${p.name}</td>
+      ${mCells}
+      <td><div class="mini-bars" style="display:flex;align-items:flex-end;gap:3px;height:22px">${bars}</div></td>
+      <td style="font-size:11px;color:${p.retire?'#d9534f':'#bbb'}">${p.retire||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pageInfo').textContent = `${cp} / ${tp}`;
+  document.getElementById('prevBtn').disabled = cp <= 1;
+  document.getElementById('nextBtn').disabled = cp >= tp;
+  document.getElementById('countInfo').textContent = `${filtered.length}名`;
+  document.getElementById('pgCount').textContent = `${filtered.length}名中 ${(cp-1)*PER+1}〜${Math.min(cp*PER,filtered.length)}件`;
+  document.getElementById('headerSub').textContent = `${months.map(mLabel).join('・')} — ${allP.length}名追跡`;
+  document.getElementById('registeredMonths').textContent = '登録済み月: ' + months.map(mLabel).join(' / ');
+}
+
+init();
+</script>
+</body>
+</html>
